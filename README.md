@@ -1,6 +1,6 @@
 # 📄 Flujo de Automatización OCR para Documentos Judiciales
 
-## 🎯 Descripción General
+## Descripción General
 
 Este flujo de n8n implementa un sistema completo de **extracción automatizada de datos** desde documentos judiciales en formato PDF utilizando OCR (Reconocimiento Óptico de Caracteres) y procesamiento con Inteligencia Artificial. El sistema convierte automáticamente documentos escaneados en datos estructurados exportables a Excel.
 
@@ -166,6 +166,7 @@ Analiza este documento judicial y extrae estos 14 campos en formato tabla:
    - ID: `nc4dTlu0h1pj1rZN`
    - Nombre: `document_intelligence`
    - Endpoint: `primapoc.cognitiveservices.azure.com`
+   - **en caso se necesite direccion ip para azure document intelligence** [ejecutar este codigo](https://github.com/Ferx096/poc_ocr/blob/main/n8n_json/ip.json)
 
 3. **Azure Blob Storage**
    - ID: `q2kONl2cwdkAeB2w`
@@ -181,7 +182,6 @@ WEBHOOK_URL=https://inadvance.app.n8n.cloud/webhook/ocr-upload
 # Azure Form Recognizer - ocr azure document intelligence
 AZURE_FORM_RECOGNIZER_ENDPOINT=https://primapoc.cognitiveservices.azure.com
 AZURE_FORM_RECOGNIZER_KEY=<tu-api-key>
-**en caso se necesite direccion ip para azure document intelligence** [ejecutar este codigo](https://github.com/Ferx096/poc_ocr/blob/main/n8n_json/ip.json)
 
 # OpenAI
 OPENAI_API_KEY=<tu-api-key>
@@ -226,7 +226,7 @@ const WEBHOOK_URL = 'https://tu-dominio.app.n8n.cloud/webhook/ocr-upload';
 
 ---
 
-## 📋 Anexo: Estructura JSON del Flujo
+## Anexo: Estructura JSON del Flujo
 
 El flujo contiene **13 nodos** principales con las siguientes conexiones:
 
