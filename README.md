@@ -51,6 +51,11 @@ graph TD
   - Modo debug con logs detallados
 
 
+
+
+https://github.com/user-attachments/assets/f4ca8ef3-5dca-4455-ac38-b46a2b26b728
+
+
   
 
 [Ir a web](https://ferx096.github.io/poc_ocr/),  [Ir al codigo html para despliegue](https://github.com/Ferx096/poc_ocr/blob/main/index.html)
