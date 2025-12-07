@@ -32,9 +32,11 @@ graph TD
     O[Simple Memory] -.->|Context| J
 ```
 
-ir al codigo del flujo [aqui](https://github.com/Ferx096/poc_ocr/blob/main/n8n_json/ocr_final.json)
+1. Ir al codigo del flujo [aqui](https://github.com/Ferx096/poc_ocr/blob/main/n8n_json/ocr_final.json)
+   ![ocr_final](https://github.com/Ferx096/poc_ocr/blob/main/image/ocr_final.png)
 
-ir a la version donde se descargue el aquivo excel [aqui](https://github.com/Ferx096/poc_ocr/blob/main/n8n_json/ocr_web-3.json)
+2. Ir a la version donde se descargue el aquivo excel [aqui](https://github.com/Ferx096/poc_ocr/blob/main/n8n_json/ocr_web-3.json)
+   ![ocr_final](https://github.com/Ferx096/poc_ocr/blob/main/image/ocr_web.png)
 
 ## 📦 Componentes del Sistema
 
