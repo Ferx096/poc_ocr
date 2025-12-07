@@ -1,0 +1,524 @@
+{
+  "name": "ocr_final",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.cleanText }}",
+        "options": {
+          "systemMessage": "=Analiza este documento judicial y extrae:\n{{ $json.cleanText }}\n\nExtrae estos 14 campos en formato tabla:\n- NumExpediente (código del proceso)\n- NumDocumento (número de oficio/resolución)\n- FechaEmision (fecha de emisión)\n- FechaRecepcion (fecha de notificación a Prima AFP)\n- Materia (tipo de proceso)\n- Demandado (formato: APELLIDOS, NOMBRES)\n- Demandante (solo nombre)\n- Alimentista (beneficiario, si existe)\n- Pretension (lo solicitado)\n- TipoRetencion (porcentaje o monto)\n- TopeOFechaFin (límite, o \"No consta\")\n- PlazoRespuesta (plazo, o \"No consta\")\n- NombreJuzgado (juzgado emisor)\n- Juez (magistrado firmante)\n- Origin (nombre del PDF)\n\nResponde SOLO con tabla markdown: | Campo | Valor |"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -112,
+        144
+      ],
+      "id": "c94e3ad0-9b63-45ea-b71c-4d2489de7a99",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-2025-04-14",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-2025-04-14"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        288
+      ],
+      "id": "29cd1dd7-21de-4f73-8d2b-02904d13afc8",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "wC5k9nfhP8vKa1sp",
+          "name": "openai_poc10"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=1 {{ $execution.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        16,
+        352
+      ],
+      "id": "1b952cca-1974-41f3-9bc5-c7645ccaff9c",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -656,
+        144
+      ],
+      "id": "7ee84386-2a49-4ed8-b0fa-f1424f132c8b",
+      "name": "Wait",
+      "webhookId": "7fd8d45d-a7da-4619-8ba0-ada1ba7f195e"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Guardar la operation-location para usarla después del Wait\nconst items = [];\n\nfor (const item of $input.all()) {\n  items.push({\n    json: {\n      ...item.json,\n      operationLocation: item.json.headers?.['operation-location'] || '',\n      statusCode: item.json.statusCode\n    }\n  });\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        144
+      ],
+      "id": "bedb2828-e477-4dba-95b3-31e2faf3af54",
+      "name": "operation"
+    },
+    {
+      "parameters": {
+        "resource": "blob",
+        "operation": "create",
+        "container": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "blobCreate": "={{ $('categorizar_nombres').item.json['Nombre del PDF'] }}",
+        "binaryPropertyName": "={{ $('categorizar_nombres').item.json['Nombre del PDF'] }}",
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.azureStorage",
+      "typeVersion": 1,
+      "position": [
+        544,
+        144
+      ],
+      "id": "96a9e0e8-2293-48ad-80d5-ab17bc969f59",
+      "name": "Create blob",
+      "credentials": {
+        "azureStorageSharedKeyApi": {
+          "id": "q2kONl2cwdkAeB2w",
+          "name": "ocr_blob"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ocr-upload",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryBinary",
+        "options": {
+          "allowedOrigins": "*",
+          "rawBody": false
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1376,
+        144
+      ],
+      "id": "388cbc55-fd14-4e73-9cca-f14a1f3fb1b7",
+      "name": "cargar",
+      "webhookId": "ocr-upload-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODO CRÍTICO: Normaliza el binario Y extrae nombre sin extensión\nconst items = [];\n\nfor (const item of $input.all()) {\n  const fullFilename = item.binary?.attachment_0?.fileName || 'documento.pdf';\n  \n  // Extraer nombre sin extensión .pdf\n  const filenameWithoutExt = fullFilename.replace(/\\.pdf$/i, '');\n  \n  const newItem = {\n    json: {\n      ...item.json,\n      hasAttachment: true,\n      filename: fullFilename,              // nombre completo\n      filenameNoExt: filenameWithoutExt,   // nombre SIN .pdf\n      mimeType: item.binary?.attachment_0?.mimeType || 'application/pdf'\n    },\n    binary: {}\n  };\n  \n  // Copiar el binario con el nombre correcto\n  if (item.binary?.attachment_0) {\n    newItem.binary.data = item.binary.attachment_0;\n  }\n  \n  items.push(newItem);\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1088,
+        144
+      ],
+      "id": "a1c76339-0af4-43af-ae55-14c644b4fc81",
+      "name": "extraer_nombre"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza el archivo binario\nconst items = [];\nfor (const item of $input.all()) {\n  const newItem = {\n    json: {\n      ...item.json,\n      hasAttachment: true\n    },\n    binary: {}\n  };\n  \n  if (item.binary?.attachment_0) {\n    newItem.binary.attachment_0 = item.binary.attachment_0;\n  }\n  \n  items.push(newItem);\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        144
+      ],
+      "id": "1516e297-54cc-4b68-ab1f-ff9cd9f6bc8e",
+      "name": "normalizar_binario"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.headers['operation-location'] }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -480,
+        144
+      ],
+      "id": "5451474b-b746-4c31-8e77-8ce4c4415b57",
+      "name": "recibir_lectura",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nc4dTlu0h1pj1rZN",
+          "name": "document_intelligence"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop Over Items\nfor (const item of $input.all()) {\n  const analyzeResult = item.json.body?.analyzeResult;\n  \n  if (!analyzeResult) {\n    item.json.cleanText = \"No se pudo extraer texto\";\n    continue;\n  }\n  \n  let extractedText = \"\";\n  \n  if (analyzeResult.readResults) {\n    for (const page of analyzeResult.readResults) {\n      for (const line of page.lines) {\n        extractedText += line.text + \"\\n\";\n      }\n    }\n  }\n  \n  item.json.cleanText = extractedText.trim();\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        144
+      ],
+      "id": "23aebfc3-4857-4bcd-86de-a0e8bd793825",
+      "name": "analizar_resultado"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recibir el output del agente desde el workflow principal\nconst agentText = $input.first().json.output || $input.first().json.text || JSON.stringify($input.first().json);\n\n// Obtener el nombre del PDF desde el nodo anterior\nconst nombrePDF = $('extraer_nombre').first().json.filenameNoExt || \n                  $input.first().json.filenameNoExt || \n                  \"documento_sin_nombre\";\n\n// ⚠️ CAMBIO: Usar los títulos exactos que necesitas (con espacios, tildes y mayúsculas)\nconst excelData = {\n  \"Nombre del PDF\": nombrePDF,\n  \"N.º de expediente\": \"\",\n  \"N.º de documento\": \"\",\n  \"Fecha de emisión del documento\": \"\",\n  \"Fecha de recepción del documento\": \"\",\n  \"Materia\": \"\",\n  \"Demandado\": \"\",\n  \"Demandante (solo nombre)\": \"\",\n  \"Alimentista\": \"\",\n  \"Pretensión\": \"\",\n  \"Tipo de retención (porcentaje o monto)\": \"\",\n  \"¿La retención tiene tope o fecha de finalización?\": \"\",\n  \"Plazo para responder el oficio\": \"\",\n  \"Nombre del Juzgado\": \"\",\n  \"Juez\": \"\"\n};\n\n// Mapeo de nombres de campo (nuevos títulos -> posibles nombres en tabla del agente)\nconst fieldMappings = {\n  \"N.º de expediente\": [\"NumExpediente\", \"N.º de expediente\", \"Num Expediente\", \"Expediente\"],\n  \"N.º de documento\": [\"NumDocumento\", \"N.º de documento\", \"Num Documento\", \"Numero Documento\"],\n  \"Fecha de emisión del documento\": [\"FechaEmision\", \"Fecha de emisión del documento\", \"Fecha Emision\", \"Fecha de emisión\"],\n  \"Fecha de recepción del documento\": [\"FechaRecepcion\", \"Fecha de recepción del documento\", \"Fecha Recepcion\", \"Fecha de recepción\"],\n  \"Materia\": [\"Materia\"],\n  \"Demandado\": [\"Demandado\"],\n  \"Demandante (solo nombre)\": [\"Demandante\", \"Demandante (solo nombre)\"],\n  \"Alimentista\": [\"Alimentista\"],\n  \"Pretensión\": [\"Pretension\", \"Pretensión\"],\n  \"Tipo de retención (porcentaje o monto)\": [\"TipoRetencion\", \"Tipo de retención\", \"Tipo de retención (porcentaje o monto)\"],\n  \"¿La retención tiene tope o fecha de finalización?\": [\"TopeOFechaFin\", \"Tope o Fecha Fin\", \"¿La retención tiene tope o fecha de finalización?\"],\n  \"Plazo para responder el oficio\": [\"PlazoRespuesta\", \"Plazo Respuesta\", \"Plazo para responder el oficio\"],\n  \"Nombre del Juzgado\": [\"NombreJuzgado\", \"Nombre del Juzgado\", \"Juzgado\"],\n  \"Juez\": [\"Juez\"]\n};\n\nconst texto = String(agentText);\n\n// Buscar cada valor en el texto del agente\nObject.keys(excelData).forEach(campo => {\n  // Saltar \"Nombre del PDF\" porque ya lo asignamos arriba\n  if (campo === \"Nombre del PDF\") return;\n  \n  const posiblesNombres = fieldMappings[campo] || [campo];\n  \n  for (const nombre of posiblesNombres) {\n    // Escapar caracteres especiales en el nombre del campo\n    const nombreEscapado = nombre.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\n    \n    // Regex para formato de tabla markdown: | **Campo** | Valor |\n    const regexTabla = new RegExp(\n      `\\\\|\\\\s*\\\\*{0,2}${nombreEscapado}\\\\*{0,2}\\\\s*\\\\|\\\\s*([^|\\\\n]+)`,\n      'i'\n    );\n    \n    const match = texto.match(regexTabla);\n    \n    if (match && match[1]) {\n      let valor = match[1].trim();\n      valor = valor.replace(/\\s+$/, '');\n      if (valor && valor !== '') {\n        excelData[campo] = valor;\n        break;\n      }\n    }\n  }\n  \n  // Si no encontró nada, poner N/A\n  if (!excelData[campo] || excelData[campo] === '') {\n    excelData[campo] = \"N/A\";\n  }\n});\n\n// Retornar como ARRAY (lo que espera el nodo \"Convert to File\")\nreturn [{ json: excelData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        144
+      ],
+      "id": "fb8f002b-cee4-4436-9673-9d2768c46eb6",
+      "name": "categorizar_nombres"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "={{ $json['Nombre del PDF'] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        144
+      ],
+      "id": "c0d98e0c-799d-46dc-b28f-9c8945650c29",
+      "name": "convertir_csv"
+    },
+    {
+      "parameters": {
+        "content": "                     INPUT\n\n- Recibe el archivo\n- Transforma a formato binario\n- Extrae el nombre del archivo",
+        "height": 512,
+        "width": 512
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1456,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "0e9c8cc2-2890-431f-bec5-7fc5581090f5",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "                   SEND\n\n- Enviar a document intelligence\n- Operation para url\n- Esperar procesamiento",
+        "height": 512,
+        "width": 400
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -928,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "777878dc-618d-4fc4-9742-d8380be88ac7",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "               OCR\n\n- Recibir extracción del OCR\n- Verificar que todo salio bien",
+        "height": 512,
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -512,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "102655f1-9850-4a75-b7d2-b3dc1bc7d534",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "               AGENT\n\n- Recibir extracción del OCR\n- Verificar que todo salio bien",
+        "height": 512,
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -176,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "b3c6e903-7195-4186-ae6e-0d307ba48e2b",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "                        OUTPUT\n\n- Categorizar nombres\n- Convertir csv\n- Subir al blob storage",
+        "height": 512,
+        "width": 512
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "71311324-9ca7-4e3b-8731-00e142c8138d",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://primapoc.cognitiveservices.azure.com/formrecognizer/v2.1/layout/analyze",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/pdf"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -880,
+        144
+      ],
+      "id": "b428e70f-9eac-412a-ac2c-ed90d900489d",
+      "name": "enviar_binary",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nc4dTlu0h1pj1rZN",
+          "name": "document_intelligence"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "categorizar_nombres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "recibir_lectura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "operation": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create blob": {
+      "main": [
+        []
+      ]
+    },
+    "cargar": {
+      "main": [
+        [
+          {
+            "node": "normalizar_binario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extraer_nombre": {
+      "main": [
+        [
+          {
+            "node": "enviar_binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalizar_binario": {
+      "main": [
+        [
+          {
+            "node": "extraer_nombre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "recibir_lectura": {
+      "main": [
+        [
+          {
+            "node": "analizar_resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "analizar_resultado": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "categorizar_nombres": {
+      "main": [
+        [
+          {
+            "node": "convertir_csv",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "convertir_csv": {
+      "main": [
+        [
+          {
+            "node": "Create blob",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "enviar_binary": {
+      "main": [
+        [
+          {
+            "node": "operation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "abcfb459-0b06-494a-8953-91e91da2fc15",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0048be561be8ce8465645b9402273a44a270634fe9daeef83a17ba3f6be05638"
+  },
+  "id": "OO23as14j1h6vPrO",
+  "tags": []
+}

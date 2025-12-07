@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatización OCR - POC | InAdvance</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 0;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+        }
+
+        .logo-text {
+            color: #2c3e50;
+        }
+
+        .logo-text h1 {
+            font-size: 28px;
+            font-weight: 300;
+        }
+
+        .logo-text .consulting {
+            font-size: 14px;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+
+        .poc-badge {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 60px 0 40px;
+            text-align: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"><defs><pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero .poc-title {
+            font-size: 1.2rem;
+            color: #f06292;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #e91e63, #f06292, #9c27b0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            padding: 60px 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .upload-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 50px;
+            max-width: 800px;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .upload-card h2 {
+            color: #2c3e50;
+            font-size: 2rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .upload-card p {
+            color: #7f8c8d;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+        }
+
+        .upload-area {
+            border: 3px dashed #e91e63;
+            border-radius: 15px;
+            padding: 60px 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: linear-gradient(135deg, rgba(233, 30, 99, 0.05), rgba(156, 39, 176, 0.05));
+        }
+
+        .upload-area:hover {
+            border-color: #9c27b0;
+            background: linear-gradient(135deg, rgba(233, 30, 99, 0.1), rgba(156, 39, 176, 0.1));
+            transform: translateY(-5px);
+        }
+
+        .upload-area.dragover {
+            border-color: #9c27b0;
+            background: linear-gradient(135deg, rgba(233, 30, 99, 0.15), rgba(156, 39, 176, 0.15));
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .upload-text {
+            font-size: 1.3rem;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .upload-subtext {
+            color: #7f8c8d;
+            font-size: 1rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(233, 30, 99, 0.1), rgba(156, 39, 176, 0.1));
+            border-radius: 10px;
+            display: none;
+        }
+
+        .file-info.active {
+            display: block;
+        }
+
+        .file-name {
+            font-size: 1.1rem;
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .file-size {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            box-shadow: 0 8px 25px rgba(233, 30, 99, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px rgba(233, 30, 99, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #e91e63;
+            border: 2px solid #e91e63;
+        }
+
+        .btn-secondary:hover {
+            background: #e91e63;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: none;
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(233, 30, 99, 0.2);
+            border-top-color: #e91e63;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 30px auto;
+        }
+
+        .spinner.active {
+            display: block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 10px;
+            display: none;
+            font-size: 1rem;
+        }
+
+        .status-message.active {
+            display: block;
+        }
+
+        .status-message.success {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4caf50;
+            border: 2px solid #4caf50;
+        }
+
+        .status-message.error {
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            border: 2px solid #f44336;
+        }
+
+        .status-message.processing {
+            background: rgba(233, 30, 99, 0.1);
+            color: #e91e63;
+            border: 2px solid #e91e63;
+        }
+
+        .debug-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .debug-info.active {
+            display: block;
+        }
+
+        /* Footer */
+        .footer {
+            background: rgba(0, 0, 0, 0.2);
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+            margin-top: 60px;
+        }
+
+        .footer p {
+            margin: 10px 0;
+            opacity: 0.8;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .upload-card {
+                padding: 30px 20px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .nav {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .poc-badge {
+                order: -1;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .upload-area {
+                padding: 40px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <div class="logo">
+                    <div class="logo-icon">A</div>
+                    <div class="logo-text">
+                        <h1>InAdvance</h1>
+                        <div class="consulting">consulting group</div>
+                    </div>
+                </div>
+                <div class="poc-badge">
+                    🧪 Página de Prueba - POC
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="poc-title">Prueba de Concepto</div>
+                <h1>Automatización OCR</h1>
+            </div>
+        </div>
+    </section>
+
+    <!-- Upload Section -->
+    <section class="upload-section">
+        <div class="container">
+            <div class="upload-card">
+                <h2>📄 Extracción de Datos de Documentos Judiciales</h2>
+                <p>Sube tu documento PDF y obtén automáticamente un archivo Excel con todos los campos extraídos</p>
+
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📤</div>
+                    <div class="upload-text">Arrastra tu archivo PDF aquí</div>
+                    <div class="upload-subtext">o haz clic para seleccionar un archivo</div>
+                    <input type="file" id="fileInput" class="file-input" accept=".pdf">
+                </div>
+
+                <div class="file-info" id="fileInfo">
+                    <div class="file-name" id="fileName">📎 Archivo seleccionado</div>
+                    <div class="file-size" id="fileSize"></div>
+                </div>
+
+                <div class="spinner" id="spinner"></div>
+
+                <div class="status-message" id="statusMessage"></div>
+
+                <div class="debug-info" id="debugInfo"></div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-primary" id="processBtn" disabled>
+                        🚀 Procesar Documento
+                    </button>
+                    <button class="btn btn-secondary" id="clearBtn" style="display: none;">
+                        🔄 Cargar Otro Archivo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 InAdvance Consulting Group. Todos los derechos reservados.</p>
+            <p>Soluciones inteligentes para la transformación digital de tu negocio.</p>
+        </div>
+    </footer>
+
+    <script>
+        // IMPORTANTE: Reemplaza esta URL con la URL de tu webhook de n8n
+        // Si usas el Form Trigger original:
+        // const FORM_URL = 'https://inadvance.app.n8n.cloud/form-test/dc2ea4ca-92a1-4037-9279-db29b61a5ef6'; WEBHOOK_URL
+        
+        
+        // O si creas un webhook nuevo, será algo como:
+        const WEBHOOK_URL = 'https://inadvance.app.n8n.cloud/webhook/ocr-upload';
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const processBtn = document.getElementById('processBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const spinner = document.getElementById('spinner');
+        const statusMessage = document.getElementById('statusMessage');
+        const debugInfo = document.getElementById('debugInfo');
+
+        let selectedFile = null;
+        let debugLog = [];
+
+        function addDebugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.push(`[${timestamp}] ${message}`);
+            debugInfo.textContent = debugLog.join('\n');
+            debugInfo.classList.add('active');
+            console.log(message);
+        }
+
+        // Click en área de carga
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                handleFileSelect(files[0]);
+            } else {
+                showMessage('Por favor, selecciona un archivo PDF válido', 'error');
+            }
+        });
+
+        // Selección de archivo
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            selectedFile = file;
+            fileName.textContent = `📎 ${file.name}`;
+            fileSize.textContent = `Tamaño: ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+            fileInfo.classList.add('active');
+            processBtn.disabled = false;
+            clearBtn.style.display = 'inline-flex';
+            hideMessage();
+            debugLog = [];
+            debugInfo.classList.remove('active');
+            addDebugLog(`Archivo seleccionado: ${file.name} (${file.size} bytes)`);
+        }
+
+        // Botón de procesar
+        processBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            processBtn.disabled = true;
+            clearBtn.style.display = 'none';
+            spinner.classList.add('active');
+            showMessage('Procesando documento... Esto puede tomar entre 30-60 segundos', 'processing');
+
+            try {
+                // Crear FormData
+                const formData = new FormData();
+                formData.append('attachment_0', selectedFile);
+
+                addDebugLog(`Preparando envío a: ${WEBHOOK_URL}`);
+                addDebugLog(`Enviando archivo: ${selectedFile.name} (${selectedFile.size} bytes)`);
+
+                // Enviar a n8n
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                addDebugLog(`Respuesta recibida - Status: ${response.status} ${response.statusText}`);
+                addDebugLog(`Content-Type: ${response.headers.get('content-type')}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addDebugLog(`Error del servidor: ${errorText.substring(0, 200)}`);
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                // Obtener el content-type de la respuesta
+                const contentType = response.headers.get('content-type');
+
+                // Intentar obtener como blob
+                const blob = await response.blob();
+                addDebugLog(`Blob recibido: ${blob.size} bytes, tipo: ${blob.type}`);
+
+                // Verificar diferentes tipos de respuesta Excel
+                const isExcel = blob.type.includes('spreadsheet') || 
+                               blob.type.includes('excel') || 
+                               blob.type.includes('vnd.openxmlformats-officedocument') ||
+                               blob.type.includes('application/octet-stream') ||
+                               blob.type === '';
+
+                if (isExcel && blob.size > 0) {
+                    addDebugLog('Detectado archivo Excel válido');
+                    // Descargar el archivo Excel
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `resultado_${selectedFile.name.replace('.pdf', '')}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    addDebugLog('Descarga completada exitosamente');
+                    showMessage('✅ ¡Documento procesado exitosamente! El archivo Excel se ha descargado.', 'success');
+                } else {
+                    // Intentar leer como texto para ver qué contiene
+                    const text = await blob.text();
+                    addDebugLog(`Respuesta inesperada (primeros 500 chars): ${text.substring(0, 500)}`);
+                    throw new Error(`Respuesta no válida. Tipo: ${blob.type}, Tamaño: ${blob.size} bytes`);
+                }
+
+            } catch (error) {
+                addDebugLog(`ERROR: ${error.message}`);
+                showMessage(`❌ Error: ${error.message}. Revisa los detalles de depuración abajo.`, 'error');
+                processBtn.disabled = false;
+            } finally {
+                spinner.classList.remove('active');
+                clearBtn.style.display = 'inline-flex';
+            }
+        });
+
+        // Botón de limpiar
+        clearBtn.addEventListener('click', () => {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.classList.remove('active');
+            processBtn.disabled = true;
+            clearBtn.style.display = 'none';
+            hideMessage();
+            debugLog = [];
+            debugInfo.classList.remove('active');
+        });
+
+        function showMessage(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message active ${type}`;
+        }
+
+        function hideMessage() {
+            statusMessage.classList.remove('active');
+        }
+    </script>
+</body>
+</html>

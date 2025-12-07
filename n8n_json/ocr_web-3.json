@@ -1,0 +1,507 @@
+{
+  "name": "ocr_web",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.cleanText }}",
+        "options": {
+          "systemMessage": "=Analiza este documento judicial y extrae:\n{{ $json.cleanText }}\n\nExtrae estos 14 campos en formato tabla:\n- NumExpediente (código del proceso)\n- NumDocumento (número de oficio/resolución)\n- FechaEmision (fecha de emisión)\n- FechaRecepcion (fecha de notificación a Prima AFP)\n- Materia (tipo de proceso)\n- Demandado (formato: APELLIDOS, NOMBRES)\n- Demandante (solo nombre)\n- Alimentista (beneficiario, si existe)\n- Pretension (lo solicitado)\n- TipoRetencion (porcentaje o monto)\n- TopeOFechaFin (límite, o \"No consta\")\n- PlazoRespuesta (plazo, o \"No consta\")\n- NombreJuzgado (juzgado emisor)\n- Juez (magistrado firmante)\n- Origin (nombre del PDF)\n\nResponde SOLO con tabla markdown: | Campo | Valor |"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1184,
+        0
+      ],
+      "id": "13988073-f637-4a7c-a2a1-af4c9910c1f4",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-2025-04-14",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-2025-04-14"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1184,
+        160
+      ],
+      "id": "fd6cb745-36ab-4054-8911-e468c66135d7",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "wC5k9nfhP8vKa1sp",
+          "name": "openai_poc10"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=1 {{ $execution.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1328,
+        192
+      ],
+      "id": "a9b9f448-bd43-42f7-acf8-bc0a33e4040e",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        688,
+        0
+      ],
+      "id": "aa24616d-f558-477a-9241-0f6e6255112c",
+      "name": "Wait",
+      "webhookId": "7fd8d45d-a7da-4619-8ba0-ada1ba7f195e"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Guardar la operation-location para usarla después del Wait\nconst items = [];\n\nfor (const item of $input.all()) {\n  items.push({\n    json: {\n      ...item.json,\n      operationLocation: item.json.headers?.['operation-location'] || '',\n      statusCode: item.json.statusCode\n    }\n  });\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        0
+      ],
+      "id": "2c41c337-4873-4af6-bb40-2bea2ee490e7",
+      "name": "operation"
+    },
+    {
+      "parameters": {
+        "content": "                     INPUT\n\n- Recibe el archivo\n- Transforma a formato binario\n- Extrae el nombre del archivo",
+        "height": 512,
+        "width": 464
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -80,
+        -192
+      ],
+      "typeVersion": 1,
+      "id": "09ea6f21-4bc5-4065-86d5-1d40bf2109e7",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "                   SEND\n\n- Enviar a document intelligence\n- Operation para url\n- Esperar procesamiento",
+        "height": 512,
+        "width": 400
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        400,
+        -192
+      ],
+      "typeVersion": 1,
+      "id": "67d64b21-d36a-4814-845f-01d68b9716d7",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "               OCR\n\n- Recibir extracción del OCR\n- Verificar que todo salio bien",
+        "height": 512,
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        816,
+        -192
+      ],
+      "typeVersion": 1,
+      "id": "92242264-364d-498b-89be-a7e2aa4f9445",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "               AGENT\n\n- Recibir extracción del OCR\n- Verificar que todo salio bien",
+        "height": 512,
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1152,
+        -192
+      ],
+      "typeVersion": 1,
+      "id": "561d5a76-b2a7-4374-9d44-46a1cf90929b",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "                        OUTPUT\n\n- Categorizar nombres\n- Convertir xlsx\n- Subir a la web",
+        "height": 512,
+        "width": 496
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1488,
+        -192
+      ],
+      "typeVersion": 1,
+      "id": "2b6c7217-be6f-46a7-b997-072060f43c99",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza el archivo binario\nconst items = [];\nfor (const item of $input.all()) {\n  const newItem = {\n    json: {\n      ...item.json,\n      hasAttachment: true\n    },\n    binary: {}\n  };\n  \n  if (item.binary?.attachment_0) {\n    newItem.binary.attachment_0 = item.binary.attachment_0;\n  }\n  \n  items.push(newItem);\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        0
+      ],
+      "id": "d7e547e4-07cc-4809-a2d6-d7cb5a2e9e64",
+      "name": "normalizar_binario"
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODO CRÍTICO: Normaliza el binario del formulario\nconst items = [];\n\nfor (const item of $input.all()) {\n  const newItem = {\n    json: {\n      ...item.json,\n      hasAttachment: true,\n      filename: item.binary?.attachment_0?.fileName || 'documento.pdf',\n      mimeType: item.binary?.attachment_0?.mimeType || 'application/pdf'\n    },\n    binary: {}\n  };\n  \n  // Copiar el binario con el nombre correcto\n  if (item.binary?.attachment_0) {\n    newItem.binary.data = item.binary.attachment_0;\n  }\n  \n  items.push(newItem);\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "60efe959-5997-4043-b661-50670ce863d4",
+      "name": "extraer_nombre"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ocr-upload",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryBinary",
+        "options": {
+          "allowedOrigins": "*",
+          "rawBody": false
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -48,
+        0
+      ],
+      "id": "cd9d7d24-ce5d-48f4-b782-fc8c361187c9",
+      "name": "cargar",
+      "webhookId": "ocr-upload-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://primapoc.cognitiveservices.azure.com/formrecognizer/v2.1/layout/analyze",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/pdf"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "5b82eacb-d57b-4931-9ba4-8d4f0e743df3",
+      "name": "enviar_binary",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nc4dTlu0h1pj1rZN",
+          "name": "document_intelligence"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.headers['operation-location'] }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        832,
+        0
+      ],
+      "id": "ec295171-2054-4b93-82c2-ea82c88a0ffd",
+      "name": "recibir_lectura",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nc4dTlu0h1pj1rZN",
+          "name": "document_intelligence"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop Over Items\nfor (const item of $input.all()) {\n  const analyzeResult = item.json.body?.analyzeResult;\n  \n  if (!analyzeResult) {\n    item.json.cleanText = \"No se pudo extraer texto\";\n    continue;\n  }\n  \n  let extractedText = \"\";\n  \n  if (analyzeResult.readResults) {\n    for (const page of analyzeResult.readResults) {\n      for (const line of page.lines) {\n        extractedText += line.text + \"\\n\";\n      }\n    }\n  }\n  \n  item.json.cleanText = extractedText.trim();\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        0
+      ],
+      "id": "84cf10cf-bba8-4f91-98c4-ca72a8e18e70",
+      "name": "analizar_resultado"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recibir el output del agente desde el workflow principal\nconst agentText = $input.first().json.output || $input.first().json.text || JSON.stringify($input.first().json);\n\n// Obtener el nombre del PDF desde el nodo anterior\nconst nombrePDF = $('extraer_nombre').first().json.filenameNoExt || \n                  $input.first().json.filenameNoExt || \n                  \"documento_sin_nombre\";\n\n// ⚠️ CAMBIO: Usar los títulos exactos que necesitas (con espacios, tildes y mayúsculas)\nconst excelData = {\n  \"Nombre del PDF\": nombrePDF,\n  \"N.º de expediente\": \"\",\n  \"N.º de documento\": \"\",\n  \"Fecha de emisión del documento\": \"\",\n  \"Fecha de recepción del documento\": \"\",\n  \"Materia\": \"\",\n  \"Demandado\": \"\",\n  \"Demandante (solo nombre)\": \"\",\n  \"Alimentista\": \"\",\n  \"Pretensión\": \"\",\n  \"Tipo de retención (porcentaje o monto)\": \"\",\n  \"¿La retención tiene tope o fecha de finalización?\": \"\",\n  \"Plazo para responder el oficio\": \"\",\n  \"Nombre del Juzgado\": \"\",\n  \"Juez\": \"\"\n};\n\n// Mapeo de nombres de campo (nuevos títulos -> posibles nombres en tabla del agente)\nconst fieldMappings = {\n  \"N.º de expediente\": [\"NumExpediente\", \"N.º de expediente\", \"Num Expediente\", \"Expediente\"],\n  \"N.º de documento\": [\"NumDocumento\", \"N.º de documento\", \"Num Documento\", \"Numero Documento\"],\n  \"Fecha de emisión del documento\": [\"FechaEmision\", \"Fecha de emisión del documento\", \"Fecha Emision\", \"Fecha de emisión\"],\n  \"Fecha de recepción del documento\": [\"FechaRecepcion\", \"Fecha de recepción del documento\", \"Fecha Recepcion\", \"Fecha de recepción\"],\n  \"Materia\": [\"Materia\"],\n  \"Demandado\": [\"Demandado\"],\n  \"Demandante (solo nombre)\": [\"Demandante\", \"Demandante (solo nombre)\"],\n  \"Alimentista\": [\"Alimentista\"],\n  \"Pretensión\": [\"Pretension\", \"Pretensión\"],\n  \"Tipo de retención (porcentaje o monto)\": [\"TipoRetencion\", \"Tipo de retención\", \"Tipo de retención (porcentaje o monto)\"],\n  \"¿La retención tiene tope o fecha de finalización?\": [\"TopeOFechaFin\", \"Tope o Fecha Fin\", \"¿La retención tiene tope o fecha de finalización?\"],\n  \"Plazo para responder el oficio\": [\"PlazoRespuesta\", \"Plazo Respuesta\", \"Plazo para responder el oficio\"],\n  \"Nombre del Juzgado\": [\"NombreJuzgado\", \"Nombre del Juzgado\", \"Juzgado\"],\n  \"Juez\": [\"Juez\"]\n};\n\nconst texto = String(agentText);\n\n// Buscar cada valor en el texto del agente\nObject.keys(excelData).forEach(campo => {\n  // Saltar \"Nombre del PDF\" porque ya lo asignamos arriba\n  if (campo === \"Nombre del PDF\") return;\n  \n  const posiblesNombres = fieldMappings[campo] || [campo];\n  \n  for (const nombre of posiblesNombres) {\n    // Escapar caracteres especiales en el nombre del campo\n    const nombreEscapado = nombre.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\n    \n    // Regex para formato de tabla markdown: | **Campo** | Valor |\n    const regexTabla = new RegExp(\n      `\\\\|\\\\s*\\\\*{0,2}${nombreEscapado}\\\\*{0,2}\\\\s*\\\\|\\\\s*([^|\\\\n]+)`,\n      'i'\n    );\n    \n    const match = texto.match(regexTabla);\n    \n    if (match && match[1]) {\n      let valor = match[1].trim();\n      valor = valor.replace(/\\s+$/, '');\n      if (valor && valor !== '') {\n        excelData[campo] = valor;\n        break;\n      }\n    }\n  }\n  \n  // Si no encontró nada, poner N/A\n  if (!excelData[campo] || excelData[campo] === '') {\n    excelData[campo] = \"N/A\";\n  }\n});\n\n// Retornar como ARRAY (lo que espera el nodo \"Convert to File\")\nreturn [{ json: excelData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        0
+      ],
+      "id": "47040309-cb87-4100-aea6-33e9eb31adb9",
+      "name": "categorizar_nombre"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\nfor (const item of $input.all()) {\n  items.push({\n    json: {},\n    binary: { data: item.binary?.data }\n  });\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        0
+      ],
+      "id": "fe9a8695-38c7-4366-b0aa-582bdfaf6e36",
+      "name": "subir_excel"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1664,
+        0
+      ],
+      "id": "a46536b3-574a-4f44-b752-d770b101ad04",
+      "name": "convertir_xlsx"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "categorizar_nombre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "recibir_lectura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "operation": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalizar_binario": {
+      "main": [
+        [
+          {
+            "node": "extraer_nombre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extraer_nombre": {
+      "main": [
+        [
+          {
+            "node": "enviar_binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cargar": {
+      "main": [
+        [
+          {
+            "node": "normalizar_binario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "enviar_binary": {
+      "main": [
+        [
+          {
+            "node": "operation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "recibir_lectura": {
+      "main": [
+        [
+          {
+            "node": "analizar_resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "analizar_resultado": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "categorizar_nombre": {
+      "main": [
+        [
+          {
+            "node": "convertir_xlsx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "subir_excel": {
+      "main": [
+        []
+      ]
+    },
+    "convertir_xlsx": {
+      "main": [
+        [
+          {
+            "node": "subir_excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9416fbd0-522f-420c-ac64-87b5ce7a3798",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0048be561be8ce8465645b9402273a44a270634fe9daeef83a17ba3f6be05638"
+  },
+  "id": "PFiSxiNgjd6YhhcB",
+  "tags": []
+}
