@@ -279,6 +279,31 @@
             cursor: not-allowed;
         }
 
+        /* Token status indicator */
+        .token-status {
+            text-align: center;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+
+        .token-status.loading {
+            background: rgba(255, 193, 7, 0.15);
+            color: #f57f17;
+        }
+
+        .token-status.ready {
+            background: rgba(76, 175, 80, 0.15);
+            color: #4caf50;
+        }
+
+        .token-status.error {
+            background: rgba(244, 67, 54, 0.15);
+            color: #f44336;
+        }
+
         /* Loading Spinner */
         .spinner {
             display: none;
@@ -436,6 +461,11 @@
                 <h2>📄 Extracción de Datos de Documentos Judiciales</h2>
                 <p>Sube tu documento PDF y obtén automáticamente un archivo Excel con todos los campos extraídos</p>
 
+                <!-- Token status indicator -->
+                <div style="text-align: center;">
+                    <span class="token-status loading" id="tokenStatus">⏳ Conectando con el servidor...</span>
+                </div>
+
                 <div class="upload-area" id="uploadArea">
                     <div class="upload-icon">📤</div>
                     <div class="upload-text">Arrastra tu archivo PDF aquí</div>
@@ -475,18 +505,12 @@
     </footer>
 
     <script>
-        // ─────────────────────────────────────────────
-        // CAMBIO 1: Se agregaron las 2 URLs (antes solo existía WEBHOOK_URL)
-        // JWT_URL  → endpoint que genera el token (tu workflow JWT)
-        // WEBHOOK_URL → igual que antes, no cambia
-        // ─────────────────────────────────────────────
+        // =============================================
+        // CONFIGURACIÓN
+        // =============================================
         const JWT_URL     = 'https://inadvance.app.n8n.cloud/webhook/jwt';
         const WEBHOOK_URL = 'https://inadvance.app.n8n.cloud/webhook/ocr-upload';
 
-        // ─────────────────────────────────────────────
-        // CAMBIO 2: Se agregó la variable jwtToken (antes no existía)
-        // Guarda el token en memoria para usarlo en cada request
-        // ─────────────────────────────────────────────
         let jwtToken = null;
 
         const uploadArea = document.getElementById('uploadArea');
@@ -499,6 +523,7 @@
         const spinner = document.getElementById('spinner');
         const statusMessage = document.getElementById('statusMessage');
         const debugInfo = document.getElementById('debugInfo');
+        const tokenStatus = document.getElementById('tokenStatus');
 
         let selectedFile = null;
         let debugLog = [];
@@ -511,41 +536,144 @@
             console.log(message);
         }
 
-        // ─────────────────────────────────────────────
-        // CAMBIO 3: Se agregó la función obtenerToken() (antes no existía)
-        // Se llama automáticamente al cargar la página.
-        // Pide el JWT a n8n y lo guarda en jwtToken.
-        // ─────────────────────────────────────────────
-        async function obtenerToken() {
-            try {
-                addDebugLog('Obteniendo token JWT...');
-                const resp = await fetch(JWT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source: 'ocr-poc' })
-                });
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                
-                const contentType = resp.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    const data = await resp.json();
-                    jwtToken = data.token || data;
-                } else {
-                    jwtToken = await resp.text();
-                }
-                
-                addDebugLog('Token JWT obtenido: ' + jwtToken?.substring(0, 30) + '...');
-            } catch (err) {
-                addDebugLog(`Error obteniendo token JWT: ${err.message}`);
-            }
+        function updateTokenStatus(state, message) {
+            tokenStatus.className = 'token-status ' + state;
+            tokenStatus.textContent = message;
         }
 
-        // Click en área de carga
+        // =============================================
+        // OBTENER TOKEN JWT
+        // =============================================
+        // FIX CORS: No enviar Content-Type header para evitar preflight OPTIONS.
+        // Sin Content-Type: application/json, el navegador hace un "simple request"
+        // que no necesita preflight CORS.
+        // Si eso no funciona, intenta con GET en lugar de POST.
+        // =============================================
+        async function obtenerToken() {
+            // Intento 1: POST sin Content-Type (evita preflight CORS)
+            try {
+                addDebugLog('Obteniendo token JWT (POST sin Content-Type)...');
+                updateTokenStatus('loading', '⏳ Obteniendo token de autenticación...');
+
+                const resp = await fetch(JWT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ source: 'ocr-poc' })
+                    // NO incluir headers Content-Type para evitar preflight CORS
+                });
+
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+                const rawText = await resp.text();
+                addDebugLog('Respuesta RAW JWT: ' + rawText.substring(0, 100));
+
+                // Parsear: puede ser JSON o texto plano
+                jwtToken = extraerToken(rawText);
+
+                if (jwtToken && jwtToken.startsWith('eyJ')) {
+                    addDebugLog('Token JWT válido obtenido ✓ (' + jwtToken.substring(0, 30) + '...)');
+                    updateTokenStatus('ready', '✅ Servidor conectado - Listo para procesar');
+                    return;
+                } else {
+                    addDebugLog('Token no parece JWT válido: ' + String(jwtToken).substring(0, 50));
+                    throw new Error('Token no válido');
+                }
+            } catch (err) {
+                addDebugLog(`POST sin Content-Type falló: ${err.message}`);
+            }
+
+            // Intento 2: GET (algunos webhooks de n8n aceptan GET)
+            try {
+                addDebugLog('Intentando con GET...');
+                const resp = await fetch(JWT_URL + '?source=ocr-poc', {
+                    method: 'GET'
+                });
+
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+                const rawText = await resp.text();
+                addDebugLog('Respuesta RAW JWT (GET): ' + rawText.substring(0, 100));
+
+                jwtToken = extraerToken(rawText);
+
+                if (jwtToken && jwtToken.startsWith('eyJ')) {
+                    addDebugLog('Token JWT válido obtenido via GET ✓');
+                    updateTokenStatus('ready', '✅ Servidor conectado - Listo para procesar');
+                    return;
+                } else {
+                    throw new Error('Token GET no válido');
+                }
+            } catch (err) {
+                addDebugLog(`GET también falló: ${err.message}`);
+            }
+
+            // Intento 3: POST con Content-Type text/plain (simple request, no preflight)
+            try {
+                addDebugLog('Intentando POST con Content-Type text/plain...');
+                const resp = await fetch(JWT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ source: 'ocr-poc' })
+                });
+
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+                const rawText = await resp.text();
+                addDebugLog('Respuesta RAW JWT (text/plain): ' + rawText.substring(0, 100));
+
+                jwtToken = extraerToken(rawText);
+
+                if (jwtToken && jwtToken.startsWith('eyJ')) {
+                    addDebugLog('Token JWT válido obtenido via text/plain ✓');
+                    updateTokenStatus('ready', '✅ Servidor conectado - Listo para procesar');
+                    return;
+                } else {
+                    throw new Error('Token text/plain no válido');
+                }
+            } catch (err) {
+                addDebugLog(`text/plain también falló: ${err.message}`);
+            }
+
+            // Todos los intentos fallaron
+            updateTokenStatus('error', '❌ No se pudo conectar al servidor. Revisa la consola.');
+            addDebugLog('TODOS los intentos de obtener JWT fallaron. Problema de CORS en el webhook /jwt de n8n.');
+            addDebugLog('SOLUCIÓN: En n8n, workflow JWT > nodo Webhook > Options > Allowed Origins = *');
+        }
+
+        // Extraer token de la respuesta (puede ser JSON o texto plano o JWT directo)
+        function extraerToken(rawText) {
+            const trimmed = rawText.trim();
+
+            // Caso 1: Es directamente un JWT
+            if (trimmed.startsWith('eyJ')) {
+                return trimmed;
+            }
+
+            // Caso 2: Es JSON con campo token
+            try {
+                const data = JSON.parse(trimmed);
+                if (typeof data === 'string' && data.startsWith('eyJ')) return data;
+                if (data.token && typeof data.token === 'string') return data.token;
+                if (data.data && typeof data.data === 'string') return data.data;
+                // Si es un objeto, buscar cualquier valor que sea JWT
+                for (const key of Object.keys(data)) {
+                    if (typeof data[key] === 'string' && data[key].startsWith('eyJ')) {
+                        return data[key];
+                    }
+                }
+            } catch {
+                // No es JSON, usar como texto
+            }
+
+            return trimmed;
+        }
+
+        // =============================================
+        // EVENTOS DE UPLOAD
+        // =============================================
         uploadArea.addEventListener('click', () => {
             fileInput.click();
         });
 
-        // Drag and drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
@@ -567,7 +695,6 @@
             }
         });
 
-        // Selección de archivo
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 handleFileSelect(e.target.files[0]);
@@ -579,17 +706,30 @@
             fileName.textContent = `📎 ${file.name}`;
             fileSize.textContent = `Tamaño: ${(file.size / 1024 / 1024).toFixed(2)} MB`;
             fileInfo.classList.add('active');
-            processBtn.disabled = false;
+            processBtn.disabled = !jwtToken; // Solo habilitar si hay token
             clearBtn.style.display = 'inline-flex';
             hideMessage();
             debugLog = [];
             debugInfo.classList.remove('active');
             addDebugLog(`Archivo seleccionado: ${file.name} (${file.size} bytes)`);
+
+            if (!jwtToken) {
+                showMessage('⚠️ Aún no se obtuvo el token de autenticación. Espera o recarga la página.', 'error');
+            }
         }
 
-        // Botón de procesar
+        // =============================================
+        // PROCESAR DOCUMENTO
+        // =============================================
         processBtn.addEventListener('click', async () => {
             if (!selectedFile) return;
+
+            // Verificar token antes de enviar
+            if (!jwtToken || !jwtToken.startsWith('eyJ')) {
+                showMessage('❌ No hay token JWT válido. Recarga la página e intenta de nuevo.', 'error');
+                addDebugLog('ERROR: Token JWT no disponible o no válido');
+                return;
+            }
 
             processBtn.disabled = true;
             clearBtn.style.display = 'none';
@@ -597,18 +737,13 @@
             showMessage('Procesando documento... Esto puede tomar entre 30-60 segundos', 'processing');
 
             try {
-                // Crear FormData
                 const formData = new FormData();
                 formData.append('attachment_0', selectedFile);
 
                 addDebugLog(`Preparando envío a: ${WEBHOOK_URL}`);
+                addDebugLog(`Token JWT: ${jwtToken.substring(0, 30)}...`);
                 addDebugLog(`Enviando archivo: ${selectedFile.name} (${selectedFile.size} bytes)`);
 
-                // ─────────────────────────────────────────────
-                // CAMBIO 4: Se agregó el header Authorization al fetch (antes no existía)
-                // Esta es la única línea que cambia dentro del fetch original.
-                // Todo lo demás del fetch es idéntico al original.
-                // ─────────────────────────────────────────────
                 const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
                     headers: {
@@ -623,17 +758,23 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     addDebugLog(`Error del servidor: ${errorText.substring(0, 200)}`);
+
+                    // Si es 403 jwt malformed, intentar renovar token
+                    if (response.status === 403 && errorText.includes('jwt')) {
+                        addDebugLog('Token expirado o inválido, intentando renovar...');
+                        await obtenerToken();
+                        showMessage('⚠️ Token renovado. Por favor intenta de nuevo.', 'error');
+                        processBtn.disabled = false;
+                        return;
+                    }
+
                     throw new Error(`Error ${response.status}: ${response.statusText}`);
                 }
 
-                // Obtener el content-type de la respuesta
                 const contentType = response.headers.get('content-type');
-
-                // Intentar obtener como blob
                 const blob = await response.blob();
                 addDebugLog(`Blob recibido: ${blob.size} bytes, tipo: ${blob.type}`);
 
-                // Verificar diferentes tipos de respuesta Excel
                 const isExcel = blob.type.includes('spreadsheet') || 
                                blob.type.includes('excel') || 
                                blob.type.includes('vnd.openxmlformats-officedocument') ||
@@ -642,7 +783,6 @@
 
                 if (isExcel && blob.size > 0) {
                     addDebugLog('Detectado archivo Excel válido');
-                    // Descargar el archivo Excel
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -655,7 +795,6 @@
                     addDebugLog('Descarga completada exitosamente');
                     showMessage('✅ ¡Documento procesado exitosamente! El archivo Excel se ha descargado.', 'success');
                 } else {
-                    // Intentar leer como texto para ver qué contiene
                     const text = await blob.text();
                     addDebugLog(`Respuesta inesperada (primeros 500 chars): ${text.substring(0, 500)}`);
                     throw new Error(`Respuesta no válida. Tipo: ${blob.type}, Tamaño: ${blob.size} bytes`);
@@ -692,10 +831,9 @@
             statusMessage.classList.remove('active');
         }
 
-        // ─────────────────────────────────────────────
-        // CAMBIO 5: Se llama a obtenerToken() al iniciar (antes no existía)
-        // Es la única línea nueva al final del script.
-        // ─────────────────────────────────────────────
+        // =============================================
+        // INICIAR
+        // =============================================
         obtenerToken();
     </script>
 </body>
