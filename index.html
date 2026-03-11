@@ -475,14 +475,20 @@
     </footer>
 
     <script>
-        // IMPORTANTE: Reemplaza esta URL con la URL de tu webhook de n8n
-        // Si usas el Form Trigger original:
-        // const FORM_URL = 'https://inadvance.app.n8n.cloud/form-test/dc2ea4ca-92a1-4037-9279-db29b61a5ef6'; WEBHOOK_URL
-        
-        
-        // O si creas un webhook nuevo, será algo como:
+        // ─────────────────────────────────────────────
+        // CAMBIO 1: Se agregaron las 2 URLs (antes solo existía WEBHOOK_URL)
+        // JWT_URL  → endpoint que genera el token (tu workflow JWT)
+        // WEBHOOK_URL → igual que antes, no cambia
+        // ─────────────────────────────────────────────
+        const JWT_URL     = 'https://inadvance.app.n8n.cloud/webhook/jwt';
         const WEBHOOK_URL = 'https://inadvance.app.n8n.cloud/webhook/ocr-upload';
-        
+
+        // ─────────────────────────────────────────────
+        // CAMBIO 2: Se agregó la variable jwtToken (antes no existía)
+        // Guarda el token en memoria para usarlo en cada request
+        // ─────────────────────────────────────────────
+        let jwtToken = null;
+
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const fileInfo = document.getElementById('fileInfo');
@@ -503,6 +509,28 @@
             debugInfo.textContent = debugLog.join('\n');
             debugInfo.classList.add('active');
             console.log(message);
+        }
+
+        // ─────────────────────────────────────────────
+        // CAMBIO 3: Se agregó la función obtenerToken() (antes no existía)
+        // Se llama automáticamente al cargar la página.
+        // Pide el JWT a n8n y lo guarda en jwtToken.
+        // ─────────────────────────────────────────────
+        async function obtenerToken() {
+            try {
+                addDebugLog('Obteniendo token JWT...');
+                const resp = await fetch(JWT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: 'ocr-poc' })
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                jwtToken = data.token || data;
+                addDebugLog('Token JWT obtenido correctamente ✓');
+            } catch (err) {
+                addDebugLog(`Error obteniendo token JWT: ${err.message}`);
+            }
         }
 
         // Click en área de carga
@@ -569,9 +597,16 @@
                 addDebugLog(`Preparando envío a: ${WEBHOOK_URL}`);
                 addDebugLog(`Enviando archivo: ${selectedFile.name} (${selectedFile.size} bytes)`);
 
-                // Enviar a n8n
+                // ─────────────────────────────────────────────
+                // CAMBIO 4: Se agregó el header Authorization al fetch (antes no existía)
+                // Esta es la única línea que cambia dentro del fetch original.
+                // Todo lo demás del fetch es idéntico al original.
+                // ─────────────────────────────────────────────
                 const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`
+                    },
                     body: formData,
                 });
 
@@ -649,6 +684,12 @@
         function hideMessage() {
             statusMessage.classList.remove('active');
         }
+
+        // ─────────────────────────────────────────────
+        // CAMBIO 5: Se llama a obtenerToken() al iniciar (antes no existía)
+        // Es la única línea nueva al final del script.
+        // ─────────────────────────────────────────────
+        obtenerToken();
     </script>
 </body>
 </html>
