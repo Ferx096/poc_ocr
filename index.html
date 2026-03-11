@@ -525,9 +525,16 @@
                     body: JSON.stringify({ source: 'ocr-poc' })
                 });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                const data = await resp.json();
-                jwtToken = data.token || data;
-                addDebugLog('Token JWT obtenido correctamente ✓');
+                
+                const contentType = resp.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await resp.json();
+                    jwtToken = data.token || data;
+                } else {
+                    jwtToken = await resp.text();
+                }
+                
+                addDebugLog('Token JWT obtenido: ' + jwtToken?.substring(0, 30) + '...');
             } catch (err) {
                 addDebugLog(`Error obteniendo token JWT: ${err.message}`);
             }
